@@ -1,0 +1,29 @@
+{
+  "name": "open-brain-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server for Open Brain - semantic search, recent thoughts, and stats",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "open-brain-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "pg": "^8.11.3",
+    "openai": "^4.52.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

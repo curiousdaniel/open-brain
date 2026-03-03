@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/capture.ts": {
+      "maxDuration": 10
+    }
+  }
+}
