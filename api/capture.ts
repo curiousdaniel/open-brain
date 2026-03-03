@@ -113,64 +113,62 @@ export default async function handler(
 
   const openai = new OpenAI({ apiKey: openaiApiKey });
 
-  // Acknowledge Slack within 3 seconds; process and reply via response_url
-  res.status(200).json({ ok: true });
+  try {
+    const [embedding, metadata] = await Promise.all([
+      getEmbedding(trimmedText, openai),
+      extractMetadata(trimmedText, openai),
+    ]);
 
-  (async () => {
-    try {
-      const [embedding, metadata] = await Promise.all([
-        getEmbedding(trimmedText, openai),
-        extractMetadata(trimmedText, openai),
-      ]);
+    const embeddingStr = `[${embedding.join(",")}]`;
+    const peopleStr = `{${metadata.people.map((p) => `"${String(p).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+    const topicsStr = `{${metadata.topics.map((t) => `"${String(t).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+    const actionItemsStr = `{${metadata.action_items.map((a) => `"${String(a).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
 
-      const embeddingStr = `[${embedding.join(",")}]`;
-      const peopleStr = `{${metadata.people.map((p) => `"${String(p).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
-      const topicsStr = `{${metadata.topics.map((t) => `"${String(t).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
-      const actionItemsStr = `{${metadata.action_items.map((a) => `"${String(a).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+    await sql`
+      INSERT INTO thoughts (
+        raw_text,
+        embedding,
+        people,
+        topics,
+        type,
+        action_items,
+        source_channel,
+        source_user
+      ) VALUES (
+        ${trimmedText},
+        ${embeddingStr}::vector,
+        ${peopleStr}::text[],
+        ${topicsStr}::text[],
+        ${metadata.type},
+        ${actionItemsStr}::text[],
+        ${channel_id},
+        ${user_id}
+      )
+    `;
 
-      await sql`
-        INSERT INTO thoughts (
-          raw_text,
-          embedding,
-          people,
-          topics,
-          type,
-          action_items,
-          source_channel,
-          source_user
-        ) VALUES (
-          ${trimmedText},
-          ${embeddingStr}::vector,
-          ${peopleStr}::text[],
-          ${topicsStr}::text[],
-          ${metadata.type},
-          ${actionItemsStr}::text[],
-          ${channel_id},
-          ${user_id}
-        )
-      `;
+    const summary = [
+      `:brain: *Captured to Open Brain*`,
+      ``,
+      `_${trimmedText.slice(0, 200)}${trimmedText.length > 200 ? "..." : ""}_`,
+      ``,
+      `*Type:* ${metadata.type}`,
+      metadata.people.length > 0 ? `*People:* ${metadata.people.join(", ")}` : null,
+      metadata.topics.length > 0 ? `*Topics:* ${metadata.topics.join(", ")}` : null,
+      metadata.action_items.length > 0
+        ? `*Action items:* ${metadata.action_items.join("; ")}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
 
-      const summary = [
-        `:brain: *Captured to Open Brain*`,
-        ``,
-        `_${trimmedText.slice(0, 200)}${trimmedText.length > 200 ? "..." : ""}_`,
-        ``,
-        `*Type:* ${metadata.type}`,
-        metadata.people.length > 0 ? `*People:* ${metadata.people.join(", ")}` : null,
-        metadata.topics.length > 0 ? `*Topics:* ${metadata.topics.join(", ")}` : null,
-        metadata.action_items.length > 0
-          ? `*Action items:* ${metadata.action_items.join("; ")}`
-          : null,
-      ]
-        .filter(Boolean)
-        .join("\n");
+    await replyToSlack(response_url, { text: summary });
 
-      await replyToSlack(response_url, { text: summary });
-    } catch (e) {
-      console.error("Capture pipeline error:", e);
-      await replyToSlack(response_url, {
-        text: ":x: Open Brain: Failed to process your thought. Please try again.",
-      });
-    }
-  })();
+    res.status(200).json({ ok: true, message: "Thought captured" });
+  } catch (e) {
+    console.error("Capture pipeline error:", e);
+    await replyToSlack(response_url, {
+      text: ":x: Open Brain: Failed to process your thought. Please try again.",
+    });
+    res.status(500).json({ error: "Processing failed" });
+  }
 }
