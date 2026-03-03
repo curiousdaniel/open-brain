@@ -103,6 +103,14 @@ vercel deploy --prod
 
 Note the deployment URL (e.g. `https://open-brain-xxx.vercel.app`).
 
+### 2.4 Vercel Project Settings (if you get 404)
+
+If `/api/capture` returns 404, check **Settings** → **General**:
+
+- **Framework Preset**: Set to **Other** (not Next.js)
+- **Build Command**: Leave default or `npm run build`
+- **Root Directory**: Must point to the folder containing `api/` and `package.json`
+
 ---
 
 ## Step 3: Configure Slack

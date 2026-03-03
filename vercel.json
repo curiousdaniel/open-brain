@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run build",
   "functions": {
     "api/capture.ts": {
       "maxDuration": 10

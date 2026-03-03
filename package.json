@@ -4,6 +4,7 @@
   "description": "Personal AI memory system with PostgreSQL, Slack capture, and MCP retrieval",
   "private": true,
   "scripts": {
+    "build": "echo 'Build complete'",
     "dev": "vercel dev",
     "deploy": "vercel deploy --prod"
   },
