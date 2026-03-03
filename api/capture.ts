@@ -124,6 +124,9 @@ export default async function handler(
       ]);
 
       const embeddingStr = `[${embedding.join(",")}]`;
+      const peopleStr = `{${metadata.people.map((p) => `"${String(p).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+      const topicsStr = `{${metadata.topics.map((t) => `"${String(t).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+      const actionItemsStr = `{${metadata.action_items.map((a) => `"${String(a).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
 
       await sql`
         INSERT INTO thoughts (
@@ -138,10 +141,10 @@ export default async function handler(
         ) VALUES (
           ${trimmedText},
           ${embeddingStr}::vector,
-          ${metadata.people},
-          ${metadata.topics},
+          ${peopleStr}::text[],
+          ${topicsStr}::text[],
           ${metadata.type},
-          ${metadata.action_items},
+          ${actionItemsStr}::text[],
           ${channel_id},
           ${user_id}
         )
