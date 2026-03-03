@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "open-brain": {
+      "command": "bash",
+      "args": [
+        "/Users/danielwest/Desktop/Open Brain/mcp-server/run-for-claude.sh"
+      ]
+    }
+  }
+}

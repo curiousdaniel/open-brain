@@ -9,6 +9,7 @@
     "deploy": "vercel deploy --prod"
   },
   "dependencies": {
+    "@vercel/functions": "^3.0.0",
     "@vercel/node": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
     "openai": "^4.52.0",

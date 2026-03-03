@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { waitUntil } from "@vercel/functions";
 import { sql } from "@vercel/postgres";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -113,62 +114,70 @@ export default async function handler(
 
   const openai = new OpenAI({ apiKey: openaiApiKey });
 
-  try {
-    const [embedding, metadata] = await Promise.all([
-      getEmbedding(trimmedText, openai),
-      extractMetadata(trimmedText, openai),
-    ]);
+  // Respond immediately to avoid Slack's 3-second timeout
+  res.status(200).json({
+    response_type: "ephemeral",
+    text: ":hourglass_flowing_sand: Saving to Open Brain...",
+  });
 
-    const embeddingStr = `[${embedding.join(",")}]`;
-    const peopleStr = `{${metadata.people.map((p) => `"${String(p).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
-    const topicsStr = `{${metadata.topics.map((t) => `"${String(t).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
-    const actionItemsStr = `{${metadata.action_items.map((a) => `"${String(a).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+  // Process in background; waitUntil keeps the function alive until done
+  waitUntil(
+    (async () => {
+      try {
+        const [embedding, metadata] = await Promise.all([
+          getEmbedding(trimmedText, openai),
+          extractMetadata(trimmedText, openai),
+        ]);
 
-    await sql`
-      INSERT INTO thoughts (
-        raw_text,
-        embedding,
-        people,
-        topics,
-        type,
-        action_items,
-        source_channel,
-        source_user
-      ) VALUES (
-        ${trimmedText},
-        ${embeddingStr}::vector,
-        ${peopleStr}::text[],
-        ${topicsStr}::text[],
-        ${metadata.type},
-        ${actionItemsStr}::text[],
-        ${channel_id},
-        ${user_id}
-      )
-    `;
+        const embeddingStr = `[${embedding.join(",")}]`;
+        const peopleStr = `{${metadata.people.map((p) => `"${String(p).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+        const topicsStr = `{${metadata.topics.map((t) => `"${String(t).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
+        const actionItemsStr = `{${metadata.action_items.map((a) => `"${String(a).replace(/\\/g, "\\\\").replace(/"/g, '""')}"`).join(",")}}`;
 
-    const summary = [
-      `:brain: *Captured to Open Brain*`,
-      ``,
-      `_${trimmedText.slice(0, 200)}${trimmedText.length > 200 ? "..." : ""}_`,
-      ``,
-      `*Type:* ${metadata.type}`,
-      metadata.people.length > 0 ? `*People:* ${metadata.people.join(", ")}` : null,
-      metadata.topics.length > 0 ? `*Topics:* ${metadata.topics.join(", ")}` : null,
-      metadata.action_items.length > 0
-        ? `*Action items:* ${metadata.action_items.join("; ")}`
-        : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
+        await sql`
+          INSERT INTO thoughts (
+            raw_text,
+            embedding,
+            people,
+            topics,
+            type,
+            action_items,
+            source_channel,
+            source_user
+          ) VALUES (
+            ${trimmedText},
+            ${embeddingStr}::vector,
+            ${peopleStr}::text[],
+            ${topicsStr}::text[],
+            ${metadata.type},
+            ${actionItemsStr}::text[],
+            ${channel_id},
+            ${user_id}
+          )
+        `;
 
-    await replyToSlack(response_url, { text: summary });
+        const summary = [
+          `:brain: *Captured to Open Brain*`,
+          ``,
+          `_${trimmedText.slice(0, 200)}${trimmedText.length > 200 ? "..." : ""}_`,
+          ``,
+          `*Type:* ${metadata.type}`,
+          metadata.people.length > 0 ? `*People:* ${metadata.people.join(", ")}` : null,
+          metadata.topics.length > 0 ? `*Topics:* ${metadata.topics.join(", ")}` : null,
+          metadata.action_items.length > 0
+            ? `*Action items:* ${metadata.action_items.join("; ")}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
 
-    res.status(200).json({ ok: true, message: "Thought captured" });
-  } catch (e) {
-    console.error("Capture pipeline error:", e);
-    await replyToSlack(response_url, {
-      text: ":x: Open Brain: Failed to process your thought. Please try again.",
-    });
-    res.status(500).json({ error: "Processing failed" });
-  }
+        await replyToSlack(response_url, { text: summary });
+      } catch (e) {
+        console.error("Capture pipeline error:", e);
+        await replyToSlack(response_url, {
+          text: ":x: Open Brain: Failed to process your thought. Please try again.",
+        });
+      }
+    })()
+  );
 }
